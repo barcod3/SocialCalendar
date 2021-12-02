@@ -8,8 +8,11 @@ import (
 
 	"github.com/barcod3/socialcalendar/internal/client"
 	"github.com/barcod3/socialcalendar/internal/handler"
+	"github.com/barcod3/socialcalendar/internal/processor"
 	"github.com/barcod3/socialcalendar/internal/router"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/patrickmn/go-cache"
+	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,13 +38,34 @@ func main() {
 		return
 	}
 
-	c, err := client.NewRedditClient(cfg.ID, cfg.Secret, cfg.Username, cfg.Password, cfg.Subreddit)
+	cl, err := client.NewRedditClient(cfg.ID, cfg.Secret, cfg.Username, cfg.Password, cfg.Subreddit)
 	if err != nil {
 		logrus.WithError(err).Error("Failed to create new reddit client")
 		return
 	}
 
-	h := handler.NewEventHandler(c)
+	ch := cache.New(15*time.Minute, 30*time.Minute)
+
+	pr := processor.NewEventsProcessor(cl)
+
+	job := func() {
+		events, err := pr.ProcessEvents(ctx)
+		if err != nil {
+			logrus.WithError(err).Error("Failed to process events")
+			return
+		}
+		ch.Set("events", events, cache.DefaultExpiration)
+	}
+
+	job()
+	cr := cron.New()
+	if _, err := cr.AddFunc("@every 10m", job); err != nil {
+		logrus.WithError(err).Error("Failed to create cron")
+		return
+	}
+	cr.Start()
+
+	h := handler.NewEventHandler(ch)
 
 	r := router.NewSocialAPI(ctx, cfg.BaseURL, &h)
 

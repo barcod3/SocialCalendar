@@ -9,6 +9,9 @@ run:
 test:
 	go test ./...
 
+generate:
+	go generate ./...
+
 install-lint:
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.43.0
 
@@ -16,7 +19,7 @@ lint: install-lint
 	bin/golangci-lint run
 
 docker-build:
-	docker build --tag ${APP} .   
+	docker build --tag barc0de/${APP} .   
 
 docker-run:
 	docker run -p 8080:8080 -d \
@@ -26,3 +29,6 @@ docker-run:
 		-e SOCIAL_CALENDAR_PASSWORD=${SOCIAL_CALENDAR_PASSWORD} \
 		--name socialCalendarApi \
 		${APP}
+
+docker-push:
+	docker push barc0de/${APP}:latest
